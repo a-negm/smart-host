@@ -16,3 +16,4 @@
 - Build only the scope I ask for, and say what you skipped
 - After building, run the build and tell me what you built
 - Flag anything uncertain or any shortcut you took
+- For any new UI, invoke the frontend-design skill before building
