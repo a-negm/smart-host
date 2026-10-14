@@ -13,7 +13,11 @@
 - Mock data only, no backend or auth unless asked
 
 ## Working agreement
+- Write the simplest implementation that works. Plain, readable code over clever abstractions, and no extra helpers, layers or patterns I didn't ask for
+- If the brief is ambiguous, ask me up to 3 clarifying questions before writing any code
+- No new dependencies without asking. Name the package and why you want it
+- Keep changes small, so I can read every diff
 - Build only the scope I ask for, and say what you skipped
 - After building, run the build and tell me what you built
 - Flag anything uncertain or any shortcut you took
-- For any new UI, invoke the frontend-design skill before building
+- For any new UI, invoke the frontend-design skill, but simplicity wins any conflict: get the look from shadcn components and Tailwind tokens, with no custom CSS files and no extra wrapper components
