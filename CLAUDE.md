@@ -21,3 +21,4 @@
 - After building, run the build and tell me what you built
 - Flag anything uncertain or any shortcut you took
 - For any new UI, invoke the frontend-design skill, but simplicity wins any conflict: get the look from shadcn components and Tailwind tokens, with no custom CSS files and no extra wrapper components
+- If a shadcn component I need isn't installed, add it with npx shadcn@latest add <name> instead of hand-rolling it
