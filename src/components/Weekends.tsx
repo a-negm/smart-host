@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ProposalStatus } from "@/components/ProposalStatus"
 import { cn } from "@/lib/utils"
 import { PEOPLE, WEEKENDS, weekendLabel, type State, type Status } from "@/data"
 
@@ -10,6 +11,8 @@ type Props = { state: State; me: string | null; update: (changes: Partial<State>
 const LABELS: Record<Status, string> = { yes: "Yes", partial: "Partial", no: "No" }
 
 export function Weekends({ state, me, update }: Props) {
+  const proposed = state.weekend?.value === state.preview
+
   function setStatus(name: string, w: number, value: Status) {
     const row = [...state.status[name]]
     row[w] = value
@@ -20,11 +23,7 @@ export function Weekends({ state, me, update }: Props) {
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Which weekend</h2>
-        <p className="text-sm text-muted-foreground">
-          {state.picked === null
-            ? "Not decided yet. Tap a weekend to see how it works out below."
-            : `The group picked ${weekendLabel(state.picked)}.`}
-        </p>
+        <p className="text-sm text-muted-foreground">Tap a weekend to see how it works out below.</p>
       </div>
 
       <Table>
@@ -80,14 +79,20 @@ export function Weekends({ state, me, update }: Props) {
         })}
       </div>
 
-      {state.picked === state.preview ? (
-        <div className="flex items-center justify-between gap-2 text-sm">
-          <span>{weekendLabel(state.preview)} is the group's pick.</span>
-          <Button variant="ghost" size="sm" onClick={() => update({ picked: null })}>Undo pick</Button>
-        </div>
-      ) : (
-        <Button variant="secondary" className="w-full" onClick={() => update({ picked: state.preview })}>
-          Pick {weekendLabel(state.preview)} for the group
+      <ProposalStatus
+        proposal={state.weekend}
+        label={weekendLabel}
+        me={me}
+        onConfirm={() => state.weekend && update({ weekend: { ...state.weekend, confirmed: true } })}
+      />
+      {!proposed && (
+        <Button
+          variant="secondary"
+          className="w-full"
+          disabled={!me}
+          onClick={() => me && update({ weekend: { value: state.preview, by: me, confirmed: false } })}
+        >
+          {me ? `Propose ${weekendLabel(state.preview)}` : "Pick your name to propose a weekend"}
         </Button>
       )}
     </section>

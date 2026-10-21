@@ -13,13 +13,13 @@ import { PEOPLE, initialState, weekendLabel, type State } from "@/data"
 function loadState(): State {
   try {
     const fromLink = JSON.parse(decodeURIComponent(location.hash.slice(1)))
-    if (fromLink.v === 1) return fromLink
+    if (fromLink.v === 2) return fromLink
   } catch {
     // no or broken state in the link
   }
   try {
     const saved = JSON.parse(localStorage.getItem("trip") ?? "")
-    if (saved.v === 1) return saved
+    if (saved.v === 2) return saved
   } catch {
     // nothing saved
   }
@@ -38,6 +38,7 @@ function App() {
   const [state, setState] = useState(loadState)
   const [me, setMe] = useState(loadMe)
   const [copied, setCopied] = useState(false)
+  const picked = state.weekend?.confirmed ? state.weekend.value : null
 
   useEffect(() => {
     const json = JSON.stringify(state)
@@ -67,11 +68,17 @@ function App() {
   }
 
   return (
-    <main className="mx-auto max-w-md space-y-8 px-4 py-6">
-      <header className="space-y-3">
+    <main className="mx-auto max-w-md space-y-8 px-4 pb-6">
+      {picked !== state.preview && (
+        <div className="sticky top-0 z-10 -mx-4 bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+          Preview of {weekendLabel(state.preview)}, not picked
+        </div>
+      )}
+
+      <header className="space-y-3 pt-6">
         <h1 className="text-2xl font-semibold tracking-tight">Lisbon, Alfama apartment</h1>
         <p className="text-sm text-muted-foreground">
-          {state.picked === null ? "Weekend not picked yet." : `${weekendLabel(state.picked)}, three nights.`}
+          {picked === null ? "Weekend not picked yet." : `${weekendLabel(picked)}, three nights.`}
         </p>
         <div className="flex gap-2">
           <Select value={me ?? ""} onValueChange={pickMe}>

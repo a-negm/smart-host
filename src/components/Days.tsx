@@ -10,19 +10,22 @@ import {
   guestsFor,
   isPresentOnDay,
   missesIdea,
+  weekendLabel,
   type Guest,
   type Idea,
-  weekendLabel,
+  type Slot,
   type State,
 } from "@/data"
 
 type Props = { state: State; me: string | null; update: (changes: Partial<State>) => void }
 
 function partialNote(g: Guest, day: number) {
-  if (g.arrive > day * 1440) return `from ${clock(g.arrive)}`
-  if (g.leave < (day + 1) * 1440) return g.atCheckout ? "until checkout" : `until ${clock(g.leave)}`
+  if (g.arrive! > day * 1440) return `from ${clock(g.arrive!)}`
+  if (g.leave! < (day + 1) * 1440) return g.atCheckout ? "until checkout" : `until ${clock(g.leave!)}`
   return null
 }
+
+const names = (list: { name: string }[]) => list.map((p) => p.name).join(", ")
 
 export function Days({ state, me, update }: Props) {
   const [title, setTitle] = useState("")
@@ -30,35 +33,36 @@ export function Days({ state, me, update }: Props) {
   const days = dayLabels(state.preview)
   const unplanned = state.ideas.filter((idea) => idea.day === null)
 
-  // People who said no to this weekend miss everything.
+  // People who said no miss everything; people without times are unknown.
   function whoMisses(idea: Idea) {
-    return PEOPLE.filter((p) => {
+    const misses = PEOPLE.filter((p) => {
       const g = guests.find((g) => g.name === p.name)
-      return !g || missesIdea(g, idea)
-    }).map((p) => p.name)
+      return !g || missesIdea(g, idea) === true
+    })
+    const unknown = guests.filter((g) => missesIdea(g, idea) === null)
+    return { misses, unknown }
   }
 
-  function moveIdea(id: number, day: number | null) {
-    update({ ideas: state.ideas.map((i) => (i.id === id ? { ...i, day } : i)) })
+  function changeIdea(id: number, changes: Partial<Idea>) {
+    update({ ideas: state.ideas.map((i) => (i.id === id ? { ...i, ...changes } : i)) })
   }
 
   return (
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Plan each day</h2>
-        {state.picked !== state.preview && (
-          <p className="text-sm text-muted-foreground">{weekendLabel(state.preview)}, not picked yet.</p>
-        )}
+        <p className="text-sm text-muted-foreground">{weekendLabel(state.preview)}</p>
       </div>
 
       {days.map((label, day) => {
-        const present = guests.filter((g) => isPresentOnDay(g, day))
-        const absent = PEOPLE.filter((p) => !present.some((g) => g.name === p.name))
+        const present = guests.filter((g) => isPresentOnDay(g, day) === true)
+        const unknown = guests.filter((g) => isPresentOnDay(g, day) === null)
+        const absent = PEOPLE.filter((p) => !present.some((g) => g.name === p.name) && !unknown.some((g) => g.name === p.name))
         return (
           <div key={label} className="space-y-2 border-l-2 border-primary pl-3">
             <h3 className="font-medium">{label}</h3>
             <p className="text-sm">
-              {present.length === 0 && <span className="text-muted-foreground">Nobody is here.</span>}
+              {present.length === 0 && <span className="text-muted-foreground">Nobody confirmed yet.</span>}
               {present.map((g, i) => {
                 const note = partialNote(g, day)
                 return (
@@ -71,12 +75,13 @@ export function Days({ state, me, update }: Props) {
               })}
             </p>
             <p className="text-sm text-muted-foreground">
-              {absent.length === 0 ? "Everyone is here." : `Not here: ${absent.map((p) => p.name).join(", ")}`}
+              {absent.length === 0 ? "Nobody is missing." : `Not here: ${names(absent)}`}
             </p>
+            {unknown.length > 0 && <p className="text-sm text-muted-foreground">Times not set: {names(unknown)}</p>}
             {state.ideas
               .filter((idea) => idea.day === day)
               .map((idea) => (
-                <IdeaRow key={idea.id} idea={idea} days={days} misses={whoMisses(idea)} onMove={moveIdea} />
+                <IdeaRow key={idea.id} idea={idea} days={days} who={whoMisses(idea)} onChange={changeIdea} />
               ))}
           </div>
         )
@@ -86,14 +91,14 @@ export function Days({ state, me, update }: Props) {
         <h3 className="font-medium">Not planned yet</h3>
         {unplanned.length === 0 && <p className="text-sm text-muted-foreground">Every idea has a day.</p>}
         {unplanned.map((idea) => (
-          <IdeaRow key={idea.id} idea={idea} days={days} misses={null} onMove={moveIdea} />
+          <IdeaRow key={idea.id} idea={idea} days={days} who={null} onChange={changeIdea} />
         ))}
         <form
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault()
             if (!title.trim() || !me) return
-            const idea: Idea = { id: Date.now(), title: title.trim(), addedBy: me, note: "", day: null, slot: "any" }
+            const idea: Idea = { id: Date.now(), title: title.trim(), addedBy: me, note: "", day: null, slot: null }
             update({ ideas: [...state.ideas, idea] })
             setTitle("")
           }}
@@ -114,38 +119,52 @@ export function Days({ state, me, update }: Props) {
 function IdeaRow({
   idea,
   days,
-  misses,
-  onMove,
+  who,
+  onChange,
 }: {
   idea: Idea
   days: string[]
-  misses: string[] | null
-  onMove: (id: number, day: number | null) => void
+  who: { misses: { name: string }[]; unknown: { name: string }[] } | null
+  onChange: (id: number, changes: Partial<Idea>) => void
 }) {
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        <span className="flex-1 text-sm font-medium">{idea.title}</span>
+      <p className="text-sm font-medium">{idea.title}</p>
+      <p className="text-xs text-muted-foreground">
+        Added by {idea.addedBy}.{idea.note && ` ${idea.note}`}
+      </p>
+      <div className="flex gap-2">
         <Select
           value={idea.day === null ? "none" : String(idea.day)}
-          onValueChange={(v) => onMove(idea.id, v === "none" ? null : Number(v))}
+          onValueChange={(v) => onChange(idea.id, { day: v === "none" ? null : Number(v) })}
         >
-          <SelectTrigger size="sm" className="w-24" aria-label={`Day for ${idea.title}`}>
+          <SelectTrigger size="sm" className="flex-1" aria-label={`Day for ${idea.title}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">No day</SelectItem>
             {days.map((d, i) => (
-              <SelectItem key={d} value={String(i)}>{d.slice(0, 3)}</SelectItem>
+              <SelectItem key={d} value={String(i)}>{d}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={idea.slot ?? ""} onValueChange={(v) => onChange(idea.id, { slot: v as Slot })}>
+          <SelectTrigger size="sm" className="flex-1" aria-label={`Time of day for ${idea.title}`}>
+            <SelectValue placeholder="Time not set" />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SLOTS) as Slot[]).map((s) => (
+              <SelectItem key={s} value={s}>{SLOTS[s].label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {SLOTS[idea.slot].label}. Added by {idea.addedBy}.{idea.note && ` ${idea.note}`}
-      </p>
-      {misses && (
-        <p className="text-xs">{misses.length === 0 ? "Nobody misses it." : `Misses it: ${misses.join(", ")}`}</p>
+      {who && idea.slot === null && <p className="text-xs">Set a time of day to see who misses it.</p>}
+      {who && idea.slot !== null && (
+        <p className="text-xs">
+          {who.misses.length === 0 ? "Nobody misses it." : `Misses it: ${names(who.misses)}.`}
+          {who.unknown.length > 0 && <span className="text-muted-foreground"> Not known yet: {names(who.unknown)}.</span>}
+        </p>
       )}
     </div>
   )

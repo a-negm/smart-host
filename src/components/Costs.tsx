@@ -3,7 +3,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { NIGHTS, PEOPLE, euros, guestsFor, splitByNights, splitEqual, staysNight, type SplitRule, type State } from "@/data"
+import { ProposalStatus } from "@/components/ProposalStatus"
+import {
+  NIGHTS,
+  PEOPLE,
+  euros,
+  flightExtra,
+  guestsFor,
+  hasTimes,
+  splitByNights,
+  splitEqual,
+  staysNight,
+  type SplitRule,
+  type State,
+} from "@/data"
 
 type Props = { state: State; me: string | null; update: (changes: Partial<State>) => void }
 
@@ -15,10 +28,17 @@ export function Costs({ state, me, update }: Props) {
   const byNights = splitByNights(guests, state.apartment)
   const sum = (shares: number[]) => shares.reduce((a, b) => a + b, 0)
   const notComing = PEOPLE.filter((p) => !guests.some((g) => g.name === p.name))
-  const rule = state.split
+  const noTimes = guests.filter((g) => !hasTimes(g)).map((g) => g.name)
+  const rule = state.split?.confirmed ? state.split.value : null
+
+  // Travel counts once the person has entered it, plus any extra for a chosen flight.
+  const travelOf = (name: string) => {
+    const travel = state.travel[name]
+    return travel === null ? null : travel + flightExtra(state, name)
+  }
 
   const warnings = guests.flatMap((g, i) => {
-    const travel = state.travel[g.name]
+    const travel = travelOf(g.name)
     if (travel === null) return []
     const budget = PEOPLE.find((p) => p.name === g.name)!.budget
     if (rule) {
@@ -58,16 +78,24 @@ export function Costs({ state, me, update }: Props) {
       <div className="space-y-2">
         <Label>How the group splits it</Label>
         <RadioGroup
-          value={rule ?? "undecided"}
-          onValueChange={(v) => update({ split: v === "undecided" ? null : (v as SplitRule) })}
+          value={state.split?.value ?? ""}
+          disabled={!me}
+          onValueChange={(v) => me && update({ split: { value: v as SplitRule, by: me, confirmed: false } })}
         >
-          {[["undecided", "Not decided, show both"], ...Object.entries(RULES)].map(([value, label]) => (
+          {(Object.keys(RULES) as SplitRule[]).map((value) => (
             <div key={value} className="flex items-center gap-2">
               <RadioGroupItem value={value} id={`split-${value}`} />
-              <Label htmlFor={`split-${value}`} className="font-normal">{label}</Label>
+              <Label htmlFor={`split-${value}`} className="font-normal">Propose {RULES[value].toLowerCase()}</Label>
             </div>
           ))}
         </RadioGroup>
+        <ProposalStatus
+          proposal={state.split}
+          label={(v) => RULES[v]}
+          me={me}
+          onConfirm={() => state.split && update({ split: { ...state.split, confirmed: true } })}
+        />
+        {!rule && <p className="text-xs text-muted-foreground">Both splits are shown until one is confirmed.</p>}
       </div>
 
       <Table>
@@ -83,12 +111,15 @@ export function Costs({ state, me, update }: Props) {
         </TableHeader>
         <TableBody>
           {guests.map((g, i) => {
-            const travel = state.travel[g.name]
+            const travel = travelOf(g.name)
+            const extra = flightExtra(state, g.name)
             const share = rule === "equal" ? equal[i] : byNights[i]
             return (
               <TableRow key={g.name} className={cn(g.name === me && "bg-accent")}>
                 <TableCell className="font-medium">{g.name}</TableCell>
-                <TableCell className="text-right">{[0, 1, 2].filter((n) => staysNight(g, n)).length}</TableCell>
+                <TableCell className="text-right">
+                  {hasTimes(g) ? [0, 1, 2].filter((n) => staysNight(g, n)).length : "?"}
+                </TableCell>
                 {rule !== "nights" && <TableCell className="text-right">{euros(equal[i])}</TableCell>}
                 {rule !== "equal" && <TableCell className="text-right">{euros(byNights[i])}</TableCell>}
                 <TableCell className="text-right">
@@ -99,7 +130,7 @@ export function Costs({ state, me, update }: Props) {
                       placeholder="€"
                       aria-label="Your travel cost"
                       className="ml-auto h-7 w-16 text-right"
-                      value={travel ?? ""}
+                      value={state.travel[g.name] ?? ""}
                       onChange={(e) => setTravel(g.name, e.target.value)}
                     />
                   ) : travel === null ? (
@@ -107,6 +138,7 @@ export function Costs({ state, me, update }: Props) {
                   ) : (
                     euros(travel)
                   )}
+                  {extra > 0 && <span className="block text-xs text-muted-foreground">+{euros(extra)} flight</span>}
                 </TableCell>
                 {rule && (
                   <TableCell className="text-right font-medium">
@@ -127,6 +159,11 @@ export function Costs({ state, me, update }: Props) {
         </TableFooter>
       </Table>
 
+      {noTimes.length > 0 && rule !== "equal" && (
+        <p className="text-xs text-muted-foreground">
+          No times yet for {noTimes.join(", ")}, so their by-nights share assumes all {NIGHTS} nights.
+        </p>
+      )}
       {notComing.length > 0 && (
         <p className="text-sm text-muted-foreground">Not coming, so not paying: {notComing.map((p) => p.name).join(", ")}.</p>
       )}
