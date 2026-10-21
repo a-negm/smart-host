@@ -20,8 +20,8 @@ import {
 type Props = { state: State; me: string | null; update: (changes: Partial<State>) => void }
 
 function partialNote(g: Guest, day: number) {
-  if (g.arrive! > day * 1440) return `from ${clock(g.arrive!)}`
-  if (g.leave! < (day + 1) * 1440) return g.atCheckout ? "until checkout" : `until ${clock(g.leave!)}`
+  if (day === g.from) return g.arrive === null ? "arrives, time not set" : `from ${clock(g.arrive)}`
+  if (day === g.to) return g.atCheckout ? "until checkout" : g.leave === null ? "leaves, time not set" : `until ${clock(g.leave)}`
   return null
 }
 
@@ -31,16 +31,15 @@ export function Days({ state, me, update }: Props) {
   const [title, setTitle] = useState("")
   const guests = guestsFor(state)
   const days = dayLabels(state.preview)
+  const cantCome = PEOPLE.filter((p) => !guests.some((g) => g.name === p.name))
   const unplanned = state.ideas.filter((idea) => idea.day === null)
 
-  // People who said no miss everything; people without times are unknown.
+  // Only people coming this weekend count; their misses can be unknown until times are set.
   function whoMisses(idea: Idea) {
-    const misses = PEOPLE.filter((p) => {
-      const g = guests.find((g) => g.name === p.name)
-      return !g || missesIdea(g, idea) === true
-    })
-    const unknown = guests.filter((g) => missesIdea(g, idea) === null)
-    return { misses, unknown }
+    return {
+      misses: guests.filter((g) => missesIdea(g, idea) === true),
+      unknown: guests.filter((g) => missesIdea(g, idea) === null),
+    }
   }
 
   function changeIdea(id: number, changes: Partial<Idea>) {
@@ -51,18 +50,19 @@ export function Days({ state, me, update }: Props) {
     <section className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">Plan each day</h2>
-        <p className="text-sm text-muted-foreground">{weekendLabel(state.preview)}</p>
+        <p className="text-sm text-muted-foreground">
+          {weekendLabel(state.preview)}.{cantCome.length > 0 && ` Can't come: ${names(cantCome)}.`}
+        </p>
       </div>
 
       {days.map((label, day) => {
-        const present = guests.filter((g) => isPresentOnDay(g, day) === true)
-        const unknown = guests.filter((g) => isPresentOnDay(g, day) === null)
-        const absent = PEOPLE.filter((p) => !present.some((g) => g.name === p.name) && !unknown.some((g) => g.name === p.name))
+        const present = guests.filter((g) => isPresentOnDay(g, day))
+        const absent = PEOPLE.filter((p) => !present.some((g) => g.name === p.name))
         return (
           <div key={label} className="space-y-2 border-l-2 border-primary pl-3">
             <h3 className="font-medium">{label}</h3>
             <p className="text-sm">
-              {present.length === 0 && <span className="text-muted-foreground">Nobody confirmed yet.</span>}
+              {present.length === 0 && <span className="text-muted-foreground">Nobody is here.</span>}
               {present.map((g, i) => {
                 const note = partialNote(g, day)
                 return (
@@ -77,7 +77,6 @@ export function Days({ state, me, update }: Props) {
             <p className="text-sm text-muted-foreground">
               {absent.length === 0 ? "Nobody is missing." : `Not here: ${names(absent)}`}
             </p>
-            {unknown.length > 0 && <p className="text-sm text-muted-foreground">Times not set: {names(unknown)}</p>}
             {state.ideas
               .filter((idea) => idea.day === day)
               .map((idea) => (
@@ -124,7 +123,7 @@ function IdeaRow({
 }: {
   idea: Idea
   days: string[]
-  who: { misses: { name: string }[]; unknown: { name: string }[] } | null
+  who: { misses: Guest[]; unknown: Guest[] } | null
   onChange: (id: number, changes: Partial<Idea>) => void
 }) {
   return (

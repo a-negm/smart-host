@@ -14,7 +14,8 @@ export function ProposalStatus<T>({ proposal, label, me, onConfirm }: Props<T>) 
   if (proposal.confirmed) {
     return (
       <p className="text-sm">
-        Decided: {label(proposal.value)}. Proposed by {proposal.by}, confirmed by {ORGANISER}.
+        Decided: {label(proposal.value)}. Proposed by {proposal.by}, confirmed by {ORGANISER}.{" "}
+        <span className="text-muted-foreground">Locked. {ORGANISER} can reopen it under Still to decide.</span>
       </p>
     )
   }

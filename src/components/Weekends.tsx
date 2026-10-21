@@ -85,7 +85,7 @@ export function Weekends({ state, me, update }: Props) {
         me={me}
         onConfirm={() => state.weekend && update({ weekend: { ...state.weekend, confirmed: true } })}
       />
-      {!proposed && (
+      {!proposed && !state.weekend?.confirmed && (
         <Button
           variant="secondary"
           className="w-full"

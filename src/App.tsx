@@ -13,13 +13,13 @@ import { PEOPLE, initialState, weekendLabel, type State } from "@/data"
 function loadState(): State {
   try {
     const fromLink = JSON.parse(decodeURIComponent(location.hash.slice(1)))
-    if (fromLink.v === 2) return fromLink
+    if (fromLink.v === 3) return fromLink
   } catch {
     // no or broken state in the link
   }
   try {
     const saved = JSON.parse(localStorage.getItem("trip") ?? "")
-    if (saved.v === 2) return saved
+    if (saved.v === 3) return saved
   } catch {
     // nothing saved
   }
